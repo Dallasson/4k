@@ -2,43 +2,40 @@
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:card_view="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="200dp"
+    android:layout_height="wrap_content"
     android:layout_margin="8dp"
     card_view:cardCornerRadius="16dp"
     card_view:cardElevation="8dp">
 
-    <FrameLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
         <!-- Channel Image -->
         <ImageView
             android:id="@+id/channelImage"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="120dp"
             android:scaleType="centerCrop"
             android:contentDescription="Channel Thumbnail" />
-
-        <!-- Overlay Gradient -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_gravity="bottom"
-            android:background="@drawable/gradient_overlay" />
 
         <!-- Channel Name -->
         <TextView
             android:id="@+id/channelName"
             android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_gravity="bottom"
-            android:gravity="center_vertical|start"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="8dp"
             android:textColor="@android:color/white"
-            android:textSize="16sp"
             android:textStyle="bold"
-            android:maxLines="1"
+            android:textSize="14sp"
+            android:background="#88000000"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="10sp"
+            android:autoSizeMaxTextSize="16sp"
+            android:autoSizeStepGranularity="1sp"
+            android:maxLines="2"
             android:ellipsize="end" />
-    </FrameLayout>
+    </LinearLayout>
 </androidx.cardview.widget.CardView>
