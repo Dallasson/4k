@@ -72,13 +72,28 @@ class MainActivity : AppCompatActivity() {
             imageResId = R.drawable.channel
         ),
         Channel(
-            url = "https://fash2043.cloudycdn.services/slive/ftv_ftv_4k_hevc_73d_42080_default_466_hls.smil/playlist.m3u8",
+            url = "https://streams2.sofast.tv/sofastplayout/33c31ac4-51fa-46ae-afd0-0d1fe5e60a80_0_HLS/master.m3u8",
             name = "Fashion TV 4K",
             imageResId = R.drawable.channel
         ),
         Channel(
             url = "https://dd782ed59e2a4e86aabf6fc508674b59.msvdn.net/live/S97044836/tbbP8T1ZRPBL/playlist_video.m3u8",
             name = "RAI 4K",
+            imageResId = R.drawable.channel
+        ),
+        Channel(
+            url = "https://streams2.sofast.tv/sofastplayout/33c31ac4-51fa-46ae-afd0-0d1fe5e60a80_0_HLS/master.m3u8",
+            name = "4K Travel TV",
+            imageResId = R.drawable.channel
+        ),
+        Channel(
+            url = "https://bloomberg-bloombergtv-1-it.samsung.wurl.tv/manifest/playlist.m3u8",
+            name = "Bloomberg TV+ UHD",
+            imageResId = R.drawable.channel
+        ),
+        Channel(
+            url = "https://ncdn.telewebion.com/faratar/live/playlist.m3u8",
+            name = "IRIB UHD",
             imageResId = R.drawable.channel
         )
     )
