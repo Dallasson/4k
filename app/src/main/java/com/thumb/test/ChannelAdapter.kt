@@ -1,5 +1,7 @@
 package com.thumb.test
 
+import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
@@ -47,12 +49,9 @@ class ChannelAdapter(
             notifyItemChanged(selectedPosition)
             onClick(item)
         }
+
     }
 
     override fun getItemCount(): Int = items.size
 
-    fun setSelectedPosition(position: Int) {
-        selectedPosition = position
-        notifyItemChanged(position)
-    }
 }

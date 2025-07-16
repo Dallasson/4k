@@ -1,0 +1,88 @@
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TextureView
+        android:id="@+id/textureView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+
+    <LinearLayout
+        android:id="@+id/metricsContainer"
+        android:orientation="vertical"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="30dp"
+        android:padding="4dp"
+        android:gravity="start"
+        android:layout_gravity="top|start">
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            app:cardCornerRadius="8dp">
+
+            <TextView
+                android:id="@+id/fpsText"
+                android:padding="8dp"
+                android:text="FPS: 0"
+                android:textColor="@color/white"
+                android:layout_height="wrap_content"
+                android:layout_width="wrap_content"/>
+        </androidx.cardview.widget.CardView>
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="5dp"
+            app:cardCornerRadius="8dp">
+
+            <TextView
+                android:id="@+id/bitrateText"
+                android:padding="8dp"
+                android:text="Bitrate: 0"
+                android:textColor="@color/white"
+                android:layout_height="wrap_content"
+                android:layout_width="wrap_content"/>
+        </androidx.cardview.widget.CardView>
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            app:cardCornerRadius="8dp">
+
+            <TextView
+                android:id="@+id/droppedText"
+                android:padding="8dp"
+                android:text="Dropped: 0"
+                android:textColor="@color/white"
+                android:layout_height="wrap_content"
+                android:layout_width="wrap_content"/>
+        </androidx.cardview.widget.CardView>
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/recordingBtn"
+        android:layout_width="85dp"
+        android:layout_height="85dp"
+        android:text="00:00"
+        android:textColor="@android:color/white"
+        android:textSize="13sp"
+        android:layout_gravity="bottom|center"
+        android:layout_marginBottom="50dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:insetLeft="0dp"
+        android:insetRight="0dp"
+        app:backgroundTint="@null"
+        android:background="@drawable/rounded_button" />
+
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

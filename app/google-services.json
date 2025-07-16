@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "22492548263",
+    "firebase_url": "https://attendencesystem-3dc27-default-rtdb.firebaseio.com",
+    "project_id": "attendencesystem-3dc27",
+    "storage_bucket": "attendencesystem-3dc27.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:22492548263:android:8715396205b5a5463c9f82",
+        "android_client_info": {
+          "package_name": "com.example.sampleproject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjQ4LkHKM1jaV0BBTAEgThPpSr2GQQzT4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:22492548263:android:a9225cfaf9bc4edd3c9f82",
+        "android_client_info": {
+          "package_name": "com.thumb.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjQ4LkHKM1jaV0BBTAEgThPpSr2GQQzT4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

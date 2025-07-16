@@ -1,11 +1,14 @@
 package com.thumb.test
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.GridLayoutManager
@@ -22,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var playerView: PlayerView
     private lateinit var exoPlayer: ExoPlayer
 
+    private lateinit var cardView : CardView
     private lateinit var fpsText: TextView
     private lateinit var bitrateText: TextView
     private lateinit var resolutionText: TextView
@@ -109,6 +113,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        cardView = findViewById(R.id.cardView)
         playerView = findViewById(R.id.playerView)
         fpsText = findViewById(R.id.fpsText)
         bitrateText = findViewById(R.id.bitrateText)
@@ -123,6 +128,12 @@ class MainActivity : AppCompatActivity() {
         recyclerView.adapter = ChannelAdapter(channels) { playChannel(it.url) }
 
         playChannel(channels[0].url)
+
+        cardView.setOnClickListener {
+            Intent(this, RecordingActivity::class.java).apply {
+                startActivity(this)
+            }
+        }
     }
 
     private fun playChannel(url: String) {
