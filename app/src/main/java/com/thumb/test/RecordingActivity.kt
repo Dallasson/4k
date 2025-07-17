@@ -7,14 +7,10 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
-import android.hardware.camera2.params.OutputConfiguration
-import android.hardware.camera2.params.SessionConfiguration
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.*
 import android.util.Log
-import android.util.Range
-import android.util.Size
 import android.view.Surface
 import android.view.TextureView
 import android.widget.TextView
@@ -30,7 +26,6 @@ import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storage
 import java.io.File
 import java.util.*
-import java.util.concurrent.Executors
 import kotlin.concurrent.fixedRateTimer
 
 class RecordingActivity : AppCompatActivity() {
@@ -39,17 +34,21 @@ class RecordingActivity : AppCompatActivity() {
     private lateinit var textureView: TextureView
     private lateinit var recordingBtn: MaterialButton
 
-    private var cameraDevice: CameraDevice? = null
-    private var mediaRecorder: MediaRecorder? = null
-    private var captureSession: CameraCaptureSession? = null
+    private lateinit var cameraDevice: CameraDevice
+    private lateinit var mediaRecorder: MediaRecorder
+    private lateinit var captureSession: CameraCaptureSession
 
     private lateinit var outputFile: File
-    private var isRecording = false
 
+    private var isRecording = false
+    private var droppedFrames = 0
+    private var previousFrameCount = 0
     private var frameCount = 0
+    private var bitrate = 0L
     private var fpsTimer: Timer? = null
     private var timer: Timer? = null
     private var recordingSeconds = 0
+    private var recordingStartTime: Long = 0L
 
     private lateinit var fpsText: TextView
     private lateinit var bitrateText: TextView
@@ -57,22 +56,9 @@ class RecordingActivity : AppCompatActivity() {
 
     private val firebaseStorage: FirebaseStorage = Firebase.storage
 
-    private var cameraId: String? = null
-    private var isHighSpeedCapable = false
-    private var selectedPreviewFpsRange: Range<Int> = Range(30, 30)
-    private var selectedRecordingFpsRange: Range<Int> = Range(30, 30)
-
-    private lateinit var cameraHandler: Handler
-    private lateinit var cameraThread: HandlerThread
-
     companion object {
-        private const val DEFAULT_CAMERA_ID = "1"
+        private const val CAMERA_ID = "1"
         private const val REQUEST_CAMERA_PERMISSION = 1001
-        private const val VIDEO_WIDTH = 1280
-        private const val VIDEO_HEIGHT = 720
-        private const val VIDEO_BITRATE = 12000000
-        private const val TARGET_FPS_HIGH = 60
-        private const val TARGET_FPS_NORMAL = 30
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,20 +74,17 @@ class RecordingActivity : AppCompatActivity() {
 
         textureView = findViewById(R.id.textureView)
         recordingBtn = findViewById(R.id.recordingBtn)
+
         fpsText = findViewById(R.id.fpsText)
         bitrateText = findViewById(R.id.bitrateText)
         droppedText = findViewById(R.id.droppedText)
 
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
-        cameraThread = HandlerThread("CameraThread").apply { start() }
-        cameraHandler = Handler(cameraThread.looper)
-
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
         ) {
-            ActivityCompat.requestPermissions(
-                this,
+            ActivityCompat.requestPermissions(this,
                 arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO),
                 REQUEST_CAMERA_PERMISSION
             )
@@ -112,9 +95,12 @@ class RecordingActivity : AppCompatActivity() {
             override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
                 openCamera()
             }
+
             override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
-            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) { frameCount++ }
+            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+                frameCount++
+            }
         }
 
         recordingBtn.setOnClickListener {
@@ -124,168 +110,193 @@ class RecordingActivity : AppCompatActivity() {
 
     @SuppressLint("MissingPermission")
     private fun openCamera() {
-        if (!textureView.isAvailable) return
-        try {
-            cameraId = DEFAULT_CAMERA_ID
-            val characteristics = cameraManager.getCameraCharacteristics(cameraId!!)
-            val capabilities = characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
-            isHighSpeedCapable = capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO) == true
-            val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            val availablePreviewFpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
-            selectedPreviewFpsRange = availablePreviewFpsRanges?.firstOrNull { it.upper >= TARGET_FPS_HIGH } ?: Range(TARGET_FPS_NORMAL, TARGET_FPS_NORMAL)
-            if (isHighSpeedCapable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val highSpeedRangesForSize = map?.getHighSpeedVideoFpsRangesFor(Size(VIDEO_WIDTH, VIDEO_HEIGHT))
-                selectedRecordingFpsRange = highSpeedRangesForSize?.firstOrNull { it.upper >= TARGET_FPS_HIGH } ?: Range(TARGET_FPS_NORMAL, TARGET_FPS_NORMAL)
-            } else {
-                selectedRecordingFpsRange = availablePreviewFpsRanges?.firstOrNull { it.upper >= TARGET_FPS_NORMAL } ?: Range(TARGET_FPS_NORMAL, TARGET_FPS_NORMAL)
-            }
-            cameraManager.openCamera(cameraId!!, object : CameraDevice.StateCallback() {
-                override fun onOpened(camera: CameraDevice) {
-                    cameraDevice = camera
+        cameraManager.openCamera(CAMERA_ID, object : CameraDevice.StateCallback() {
+            override fun onOpened(camera: CameraDevice) {
+                cameraDevice = camera
+                if (textureView.isAvailable) {
                     startPreview()
                 }
-                override fun onDisconnected(camera: CameraDevice) {
-                    camera.close()
-                    cameraDevice = null
-                }
-                override fun onError(camera: CameraDevice, error: Int) {
-                    camera.close()
-                    cameraDevice = null
-                    Toast.makeText(this@RecordingActivity, "Camera error: $error", Toast.LENGTH_LONG).show()
-                }
-            }, cameraHandler)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Error opening camera: ${e.message}", Toast.LENGTH_LONG).show()
-        }
+            }
+
+            override fun onDisconnected(camera: CameraDevice) {
+                camera.close()
+            }
+
+            override fun onError(camera: CameraDevice, error: Int) {
+                camera.close()
+                Log.e("CameraError", "Camera open error: $error")
+            }
+        }, Handler(Looper.getMainLooper()))
     }
 
     private fun startPreview() {
-        val cameraDevice = this.cameraDevice ?: return
-        try {
-            val surfaceTexture = textureView.surfaceTexture!!
-            surfaceTexture.setDefaultBufferSize(VIDEO_WIDTH, VIDEO_HEIGHT)
-            val previewSurface = Surface(surfaceTexture)
-            val previewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
-                addTarget(previewSurface)
-                set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, selectedPreviewFpsRange)
+        val surfaceTexture = textureView.surfaceTexture!!
+        surfaceTexture.setDefaultBufferSize(1920, 1080)
+        val previewSurface = Surface(surfaceTexture)
+
+        val previewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+        previewRequestBuilder.addTarget(previewSurface)
+
+        cameraDevice.createCaptureSession(listOf(previewSurface), object : CameraCaptureSession.StateCallback() {
+            override fun onConfigured(session: CameraCaptureSession) {
+                captureSession = session
+                captureSession.setRepeatingRequest(previewRequestBuilder.build(), null, null)
             }
-            cameraDevice.createCaptureSession(listOf(previewSurface), object : CameraCaptureSession.StateCallback() {
-                override fun onConfigured(session: CameraCaptureSession) {
-                    captureSession = session
-                    captureSession?.setRepeatingRequest(previewRequestBuilder.build(), null, cameraHandler)
-                }
-                override fun onConfigureFailed(session: CameraCaptureSession) {
-                    Toast.makeText(this@RecordingActivity, "Preview configuration failed", Toast.LENGTH_SHORT).show()
-                }
-            }, cameraHandler)
-        } catch (e: Exception) {
-            Log.e("Preview", "Error in startPreview: ${e.message}")
-        }
+
+            override fun onConfigureFailed(session: CameraCaptureSession) {
+                Log.e("Preview", "Preview configuration failed")
+            }
+        }, null)
     }
 
     private fun startRecording() {
-        val cameraDevice = this.cameraDevice ?: return
         mediaRecorder = MediaRecorder()
-        setupMediaRecorder()
+        mediaRecorder.apply {
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setVideoSource(MediaRecorder.VideoSource.SURFACE)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            outputFile = File(getExternalFilesDir(null), "recorded_${System.currentTimeMillis()}.mp4")
+            setOutputFile(outputFile.absolutePath)
+            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            setVideoFrameRate(30)
+            setVideoSize(1920, 1080)
+            prepare()
+        }
 
-        val surfaceTexture = textureView.surfaceTexture!!
-        surfaceTexture.setDefaultBufferSize(VIDEO_WIDTH, VIDEO_HEIGHT)
-        val previewSurface = Surface(surfaceTexture)
-        val recorderSurface = mediaRecorder!!.surface
+        val recorderSurface = mediaRecorder.surface
+        val previewSurface = Surface(textureView.surfaceTexture)
 
         val requestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
             addTarget(previewSurface)
             addTarget(recorderSurface)
-            set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, selectedRecordingFpsRange)
         }
 
         cameraDevice.createCaptureSession(listOf(previewSurface, recorderSurface), object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(session: CameraCaptureSession) {
                 captureSession = session
-                captureSession?.setRepeatingRequest(requestBuilder.build(), null, cameraHandler)
-                mediaRecorder?.start()
+                captureSession.setRepeatingRequest(requestBuilder.build(), null, null)
+                mediaRecorder.start()
                 isRecording = true
-                startMetrics()
-                recordingBtn.text = "Stop"
+                recordingStartTime = System.currentTimeMillis()
+                startStatsMonitor()
+                startRecordingTimer()
             }
-            override fun onConfigureFailed(session: CameraCaptureSession) {
-                Toast.makeText(this@RecordingActivity, "Recording configuration failed", Toast.LENGTH_SHORT).show()
-            }
-        }, cameraHandler)
-    }
 
-    private fun setupMediaRecorder() {
-        outputFile = File(externalCacheDir, "recording_${System.currentTimeMillis()}.mp4")
-        mediaRecorder?.apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setOutputFile(outputFile.absolutePath)
-            setVideoEncodingBitRate(VIDEO_BITRATE)
-            setVideoFrameRate(selectedRecordingFpsRange.upper)
-            setVideoSize(VIDEO_WIDTH, VIDEO_HEIGHT)
-            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            prepare()
-        }
+            override fun onConfigureFailed(session: CameraCaptureSession) {
+                Log.e("Recording", "Failed to configure recording session")
+            }
+        }, null)
     }
 
     private fun stopRecording() {
         try {
-            captureSession?.stopRepeating()
-            captureSession?.abortCaptures()
-            mediaRecorder?.stop()
-            mediaRecorder?.release()
-        } catch (_: Exception) {}
-        mediaRecorder = null
-        isRecording = false
-        captureSession = null
-        cameraDevice?.close()
-        cameraDevice = null
-        recordingBtn.text = "Record"
-        stopMetrics()
-        openCamera()
-        uploadToFirebase(outputFile)
+            captureSession.stopRepeating()
+            captureSession.abortCaptures()
+            mediaRecorder.stop()
+            mediaRecorder.release()
+            isRecording = false
+            stopStatsMonitor()
+            stopRecordingTimer()
+            recordingBtn.text = "00:00"
+            startPreview()
+            uploadToFirebase()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
-    private fun uploadToFirebase(file: File) {
-        val uri = Uri.fromFile(file)
-        val ref = firebaseStorage.reference.child("recordings/${file.name}")
-        val dialog = ProgressDialog(this).apply {
-            setTitle("Uploading")
-            setMessage("Please wait...")
-            setCancelable(false)
+    private fun startRecordingTimer() {
+        recordingSeconds = 0
+        timer = fixedRateTimer("recordingTimer", true, 0, 1000) {
+            runOnUiThread {
+                val minutes = recordingSeconds / 60
+                val seconds = recordingSeconds % 60
+                recordingBtn.text = String.format("%02d:%02d", minutes, seconds)
+                recordingSeconds++
+            }
+        }
+    }
+
+    private fun stopRecordingTimer() {
+        timer?.cancel()
+        recordingSeconds = 0
+    }
+
+    private fun uploadToFirebase() {
+        val uri = Uri.fromFile(outputFile)
+        val fileRef = firebaseStorage.reference.child("videos/${uri.lastPathSegment}")
+        val progressDialog = ProgressDialog(this).apply {
+            setTitle("Uploading...")
             setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)
+            setCancelable(false)
             max = 100
             show()
         }
-        ref.putFile(uri).addOnProgressListener {
-            val percent = (100.0 * it.bytesTransferred / it.totalByteCount).toInt()
-            dialog.progress = percent
-        }.addOnSuccessListener {
-            dialog.dismiss()
-            Toast.makeText(this, "Upload complete", Toast.LENGTH_SHORT).show()
-        }.addOnFailureListener {
-            dialog.dismiss()
-            Toast.makeText(this, "Upload failed", Toast.LENGTH_SHORT).show()
-        }
+
+        fileRef.putFile(uri)
+            .addOnProgressListener {
+                val progress = (100.0 * it.bytesTransferred / it.totalByteCount).toInt()
+                progressDialog.progress = progress
+            }
+            .addOnSuccessListener {
+                progressDialog.dismiss()
+                Toast.makeText(this, "Upload complete!", Toast.LENGTH_LONG).show()
+            }
+            .addOnFailureListener {
+                progressDialog.dismiss()
+                Toast.makeText(this, "Upload failed", Toast.LENGTH_LONG).show()
+            }
     }
 
-    private fun startMetrics() {
+    private fun startStatsMonitor() {
         frameCount = 0
-        recordingSeconds = 0
-        fpsTimer = fixedRateTimer("fpsTimer", initialDelay = 0, period = 1000) {
+        droppedFrames = 0
+        previousFrameCount = 0
+
+        if (recordingStartTime == 0L) {
+            recordingStartTime = System.currentTimeMillis()
+        }
+
+        fpsTimer = fixedRateTimer("fpsMonitor", true, 0L, 1000L) {
             runOnUiThread {
-                fpsText.text = "FPS: $frameCount"
-                bitrateText.text = "Bitrate: ${VIDEO_BITRATE / 1000} kbps"
-                droppedText.text = "Dropped: 0"
+                val fps = frameCount
+                fpsText.text = "FPS: $fps"
+
+                val dropped = (30 - fps).coerceAtLeast(0)
+                droppedText.text = "Dropped: $dropped"
+
+                val durationSeconds = ((System.currentTimeMillis() - recordingStartTime) / 1000L).coerceAtLeast(1L)
+                val fileSizeBits = outputFile.length() * 8
+                val bitrateEstimate = if (durationSeconds > 0) (fileSizeBits / durationSeconds) / 1000 else 0
+                bitrateText.text = "Bitrate: ${bitrateEstimate}kbps"
+
                 frameCount = 0
             }
         }
     }
 
-    private fun stopMetrics() {
+    @SuppressLint("SetTextI18n")
+    private fun stopStatsMonitor() {
         fpsTimer?.cancel()
-        fpsTimer = null
+        fpsText.text = "FPS: 0"
+        bitrateText.text = "Bitrate: 0kbps"
+        droppedText.text = "Dropped: 0"
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CAMERA_PERMISSION && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            openCamera()
+        } else {
+            finish()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::cameraDevice.isInitialized) cameraDevice.close()
+        fpsTimer?.cancel()
+        timer?.cancel()
     }
 }
