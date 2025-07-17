@@ -159,6 +159,7 @@ class RecordingActivity : AppCompatActivity() {
             setOutputFile(outputFile.absolutePath)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            setOrientationHint(270)
             setVideoFrameRate(30)
             setVideoSize(1920, 1080)
             prepare()
