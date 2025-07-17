@@ -1,6 +1,5 @@
 package com.thumb.test
 
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -25,7 +24,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var playerView: PlayerView
     private lateinit var exoPlayer: ExoPlayer
 
-    private lateinit var cardView : CardView
+    private lateinit var cardView: CardView
     private lateinit var fpsText: TextView
     private lateinit var bitrateText: TextView
     private lateinit var resolutionText: TextView
@@ -36,6 +35,9 @@ class MainActivity : AppCompatActivity() {
     private var lastDroppedFrames = 0
     private var lastTimeMs = 0L
 
+    private var currentChannelUrl: String? = null
+    private var lastPlaybackPosition: Long = 0L
+
     private val channels = listOf(
         Channel(
             url = "https://3abn.bozztv.com/3abn2/3abn_live/smil:3abn_live.smil/playlist.m3u8",
@@ -43,7 +45,7 @@ class MainActivity : AppCompatActivity() {
             imageResId = R.drawable.channel
         ),
         Channel(
-            url = "http://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/stitch/hls/channel/65a67dd13af63d0008257f17/master.m3u8?appName=web&appVersion=unknown&clientTime=0&deviceDNT=0&deviceId=1b1c5240-4b81-11ef-a8ac-e146e4e7be02&deviceMake=Chrome&deviceModel=web&deviceType=web&deviceVersion=unknown&includeExtendedEvents=false&serverSideAds=false&sid=6e62cae5-9404-4e52-8b20-c5fc2b453e9d",
+            url = "http://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv/stitch/hls/channel/65a67dd13af63d0008257f17/master.m3u8",
             name = "90210",
             imageResId = R.drawable.channel
         ),
@@ -52,8 +54,6 @@ class MainActivity : AppCompatActivity() {
             name = "ABC News",
             imageResId = R.drawable.channel
         ),
-
-        ////////////////////
         Channel(
             url = "https://mediaserver.abnvideos.com/streams/abnafrica.m3u8",
             name = "ABN Africa",
@@ -69,7 +69,6 @@ class MainActivity : AppCompatActivity() {
             name = "360",
             imageResId = R.drawable.channel
         ),
-        /////////////////////////////////
         Channel(
             url = "https://cdn3.wowza.com/5/OE5HREpIcEkySlNT/alhayat-live/ngrp:livestream_all/playlist.m3u8",
             name = "Al Hayat TV",
@@ -125,18 +124,18 @@ class MainActivity : AppCompatActivity() {
         playerView.player = exoPlayer
 
         recyclerView.layoutManager = GridLayoutManager(this, 3)
-        recyclerView.adapter = ChannelAdapter(channels) { playChannel(it.url) }
-
-        playChannel(channels[0].url)
+        recyclerView.adapter = ChannelAdapter(channels) {
+            playChannel(it.url)
+        }
 
         cardView.setOnClickListener {
-            Intent(this, RecordingActivity::class.java).apply {
-                startActivity(this)
-            }
+            startActivity(Intent(this, RecordingActivity::class.java))
         }
     }
 
     private fun playChannel(url: String) {
+        currentChannelUrl = url
+
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
 
@@ -149,6 +148,7 @@ class MainActivity : AppCompatActivity() {
 
         exoPlayer.setMediaSource(mediaSource)
         exoPlayer.prepare()
+        exoPlayer.seekTo(lastPlaybackPosition)
         exoPlayer.play()
 
         exoPlayer.addAnalyticsListener(object : AnalyticsListener {
@@ -175,11 +175,8 @@ class MainActivity : AppCompatActivity() {
                 mediaLoadData: MediaLoadData
             ) {
                 val bitrate = mediaLoadData.trackFormat?.bitrate ?: Format.NO_VALUE
-                if (bitrate != Format.NO_VALUE) {
-                    bitrateText.text = "Bitrate: ${bitrate / 1000} kbps"
-                } else {
-                    bitrateText.text = "Bitrate: N/A"
-                }
+                bitrateText.text =
+                    if (bitrate != Format.NO_VALUE) "Bitrate: ${bitrate / 1000} kbps" else "Bitrate: N/A"
             }
         })
     }
@@ -218,8 +215,24 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    override fun onResume() {
+        super.onResume()
+
+        if (currentChannelUrl == null) {
+            playChannel(channels[0].url)
+        } else {
+            playChannel(currentChannelUrl!!)
+        }
+    }
+
     override fun onStop() {
         super.onStop()
+        lastPlaybackPosition = exoPlayer.currentPosition
+        exoPlayer.pause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
         exoPlayer.release()
     }
 }
